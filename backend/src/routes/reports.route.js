@@ -1,65 +1,141 @@
-const express = require("express");
+// utils/reportGenerator.js
 const Report = require("../modles/ReportSchema");
-const path = require("path");
-const fs = require("fs");
+const Event = require("../modles/EventSchema");
+const PDFDocument = require("pdfkit");
+const cloudinary = require("cloudinary").v2;
+const streamifier = require("streamifier");
 
-const Reportrouter = express.Router();
+// Configure Cloudinary
+cloudinary.config({
+  cloud_name: process.env.CLOUD_NAME,
+  api_key: process.env.API_KEY,
+  api_secret: process.env.API_SECRET,
+});
 
-// List all reports - include the interview's videoUrl when available
-Reportrouter.get("/", async (req, res) => {
+/**
+ * Generate a proctoring report after interview ends
+ * @param {Object} interviewData - Raw interview data
+ * @returns {Promise<Object>} Saved Report document
+ */
+async function generateReport(interviewData) {
+  const { interviewId, candidateName, candidateEmail, duration, events = [] } = interviewData;
+
+  let eventsFromDb = events;
   try {
-    console.log("got the req");
-    // Use lean for plain objects
-    let reports = await Report.find().sort({ createdAt: -1 }).lean();
+    const fetched = await Event.find({ interviewId }).lean();
+    if (fetched && fetched.length > 0) {
+      eventsFromDb = fetched;
+    }
+  } catch (err) {
+    console.warn("Could not fetch events for report generation:", err.message);
+  }
 
-    // Collect interviewIds and fetch interviews in bulk
-    const interviewIds = [...new Set(reports.map((r) => r.interviewId).filter(Boolean))];
-    if (interviewIds.length > 0) {
-      const Interview = require("../modles/InterviewSchema");
-      const interviews = await Interview.find({ _id: { $in: interviewIds } }).select("videoUrl").lean();
-      const map = {};
-      interviews.forEach((i) => {
-        map[i._id.toString()] = i.videoUrl;
+  const suspiciousCounts = {
+    focusLost: eventsFromDb.some((e) => e.eventType === "looking_away") ? 1 : 0,
+    noFace: eventsFromDb.some((e) => e.eventType === "no_face") ? 1 : 0,
+    multipleFaces: eventsFromDb.some((e) => e.eventType === "multiple_faces_detected") ? 1 : 0,
+    phoneDetected: eventsFromDb.some((e) => e.eventType === "cell phone_detected") ? 1 : 0,
+    notesDetected: eventsFromDb.some((e) =>
+      ["book_detected", "notes_detected"].includes(e.eventType)
+    )
+      ? 1
+      : 0,
+  };
+
+  const totalEvents = Object.values(suspiciousCounts).reduce((a, b) => a + b, 0);
+
+  const integrityScore = Math.max(
+    0,
+    100 -
+      (suspiciousCounts.focusLost * 5 +
+        suspiciousCounts.noFace * 5 +
+        suspiciousCounts.multipleFaces * 10 +
+        suspiciousCounts.phoneDetected * 10 +
+        suspiciousCounts.notesDetected * 10)
+  );
+
+  const report = new Report({
+    interviewId,
+    candidateName,
+    candidateEmail,
+    duration,
+    totalEvents,
+    suspiciousCounts,
+    integrityScore,
+  });
+
+  const savedReport = await report.save();
+
+  // Generate PDF in memory (instead of file system)
+  const doc = new PDFDocument();
+  const pdfBuffer = await new Promise((resolve, reject) => {
+    const buffers = [];
+    doc.on("data", buffers.push.bind(buffers));
+    doc.on("end", () => resolve(Buffer.concat(buffers)));
+    doc.on("error", reject);
+
+    // --- PDF Content ---
+    doc.fontSize(20).text("Proctoring Report", { align: "center" });
+    doc.moveDown();
+    doc.fontSize(12).text(`Candidate Name: ${candidateName || "N/A"}`);
+    doc.text(`Candidate Email: ${candidateEmail || "N/A"}`);
+    doc.text(`Interview ID: ${interviewId}`);
+    doc.text(`Duration: ${duration} seconds`);
+    doc.text(`Date: ${new Date(savedReport.createdAt).toLocaleString()}`);
+    doc.moveDown();
+
+    doc.fontSize(14).text("Suspicious Event Detections:", { underline: true });
+    doc.moveDown(0.5);
+    doc.fontSize(12).text(`Focus Lost: ${suspiciousCounts.focusLost}`);
+    doc.text(`No Face: ${suspiciousCounts.noFace}`);
+    doc.text(`Multiple Faces: ${suspiciousCounts.multipleFaces}`);
+    doc.text(`Phone Detected: ${suspiciousCounts.phoneDetected}`);
+    doc.text(`Notes/Book Detected: ${suspiciousCounts.notesDetected}`);
+    doc.moveDown();
+
+    doc.fontSize(14).text(`Integrity Score: ${integrityScore}%`, {
+      underline: true,
+    });
+
+    doc.addPage();
+    doc.fontSize(18).text("Detailed Event Log", { underline: true });
+    doc.moveDown(0.5);
+    doc.fontSize(12);
+
+    if (eventsFromDb && eventsFromDb.length > 0) {
+      eventsFromDb.forEach((ev, idx) => {
+        const ts = new Date(ev.timestamp).toLocaleString();
+        doc.text(`${idx + 1}. [${ts}] ${ev.eventType}`);
+        if (ev.duration) doc.text(`   - Duration: ${ev.duration} seconds`);
+        if (ev.details && Object.keys(ev.details).length > 0) {
+          doc.text(`   - Details: ${JSON.stringify(ev.details)}`);
+        }
+        doc.moveDown(0.25);
       });
-
-      // Attach interviewVideoUrl to each report
-      reports = reports.map((r) => ({
-        ...r,
-        interviewVideoUrl: map[r.interviewId] || null,
-      }));
     } else {
-      reports = reports.map((r) => ({ ...r, interviewVideoUrl: null }));
+      doc.text("No events recorded for this interview.");
     }
 
-    res.json(reports);
-  } catch (err) {
-    console.error('Error listing reports:', err);
-    res.status(500).json({ error: 'Failed to list reports' });
-  }
-});
+    doc.end();
+  });
 
-// Download report PDF
-Reportrouter.get("/:id/pdf", async (req, res) => {
-  const { id } = req.params;
-  const report = await Report.findById(id);
-  if (!report || !report.reportFile) {
-    return res.status(404).json({ error: "Report not found" });
-  }
+  // Upload PDF buffer to Cloudinary
+  const uploadResult = await new Promise((resolve, reject) => {
+    const uploadStream = cloudinary.uploader.upload_stream(
+      { resource_type: "raw", folder: "reports", format: "pdf" },
+      (error, result) => {
+        if (error) reject(error);
+        else resolve(result);
+      }
+    );
+    streamifier.createReadStream(pdfBuffer).pipe(uploadStream);
+  });
 
-  // If reportFile is a URL (e.g., Cloudinary), redirect the browser to it
-  if (typeof report.reportFile === 'string' && report.reportFile.startsWith('http')) {
-    return res.redirect(report.reportFile);
-  }
+  // Save Cloudinary URL in DB
+  savedReport.reportFile = uploadResult.secure_url;
+  await savedReport.save();
 
-  const filePath = path.resolve(report.reportFile);
-  if (!fs.existsSync(filePath)) {
-    return res.status(404).json({ error: 'PDF file not found' });
-  }
+  return savedReport;
+}
 
-  // Serve PDF inline so browser can render it instead of forcing download
-  res.setHeader('Content-Type', 'application/pdf');
-  res.setHeader('Content-Disposition', `inline; filename="report-${id}.pdf"`);
-  res.sendFile(filePath);
-});
-
-module.exports = Reportrouter;
+module.exports = generateReport;
