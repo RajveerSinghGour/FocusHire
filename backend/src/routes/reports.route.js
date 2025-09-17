@@ -1,5 +1,5 @@
 // utils/reportGenerator.js
-const Report = require("../modles/ReportSchema");
+const Report = require("../modles/ReportSchema ");
 const Event = require("../modles/EventSchema");
 const PDFDocument = require("pdfkit");
 const cloudinary = require("cloudinary").v2;
