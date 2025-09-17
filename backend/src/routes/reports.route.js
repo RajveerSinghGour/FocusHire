@@ -1,5 +1,5 @@
 const express = require("express");
-const Report = require("../modles/ReportSchema ");
+const Report = require("../modles/ReportSchema");
 const path = require("path");
 const fs = require("fs");
 

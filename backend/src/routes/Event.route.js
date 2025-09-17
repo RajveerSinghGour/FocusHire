@@ -1,6 +1,6 @@
 const express = require('express');
 const Interview = require("../modles/InterviewSchema");
-const Event = require("../modles/EventSchema ");
+const Event = require("../modles/EventSchema");
 const EventRouter = express.Router();
 
 

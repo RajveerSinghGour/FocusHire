@@ -1,8 +1,8 @@
 const express = require('express');
 const router = express.Router();
 const Interview = require('../modles/InterviewSchema');
-const Event = require('../modles/EventSchema ');
-const Report = require('../modles/ReportSchema ');
+const Event = require('../modles/EventSchema');
+const Report = require('../modles/ReportSchema');
 
 // Simple debug endpoint to check DB connectivity and sample data
 router.get('/debug', async (req, res) => {
