@@ -15,7 +15,7 @@ const Home = () => {
     e.preventDefault();
     setLoading(true);
 
-    const apiUrl = import.meta.env.VITE_API_URL;
+    const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:3000";
     if (!import.meta.env.VITE_API_URL) {
       console.warn("VITE_API_URL is not set — falling back to", apiUrl);
     }
