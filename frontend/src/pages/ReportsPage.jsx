@@ -10,7 +10,7 @@ export default function ReportsPage() {
   const [error, setError] = useState(null);
   const [previewVideoUrl, setPreviewVideoUrl] = useState(null);
 
-  const apiBase = import.meta.env.VITE_API_URL || "http://localhost:3000";
+  const apiBase = import.meta.env.VITE_API_URL;
 
   // Fetch all reports on load
   useEffect(() => {

@@ -45,7 +45,7 @@ export default function InterviewPage() {
   }, [interviewId, navigate]);
 
   /** Event logging */
-  const apiBase = import.meta.env.VITE_API_URL || "http://localhost:3000";
+  const apiBase = import.meta.env.VITE_API_URL;
 
   const addLog = useCallback(
     async (eventType, details = {}) => {
