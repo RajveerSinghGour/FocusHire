@@ -46,7 +46,7 @@ export default function ReportDetails() {
   const suspiciousCounts = report.suspiciousCounts || {};
 
   return (
-    <div className="min-h-screen p-6 bg-gray-50 flex justify-center">
+    <div className="min-h-screen p-6 bg-gray-50 flex justify-center m-20">
       <div className="w-full max-w-4xl" ref={printRef}>
         <Link
           to="/report"

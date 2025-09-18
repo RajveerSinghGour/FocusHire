@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
 import axios from "axios";
-import { FiTrash2 } from 'react-icons/fi';
+import { FiTrash2, FiX } from "react-icons/fi";
 
 export default function ReportsPage() {
   const [reports, setReports] = useState([]);
@@ -28,22 +28,22 @@ export default function ReportsPage() {
 
   const handleRemove = async (interviewId) => {
     try {
-      const previewRes = await fetch(`${apiBase}/admin/interview/${interviewId}`, { method: 'DELETE' });
+      const previewRes = await fetch(`${apiBase}/admin/interview/${interviewId}`, { method: "DELETE" });
       const preview = await previewRes.json();
-      if (!previewRes.ok) throw new Error(preview.error || 'Preview failed');
+      if (!previewRes.ok) throw new Error(preview.error || "Preview failed");
 
       const confirmMsg = `This will delete interview '${preview.interview?.candidateName || interviewId}' and ${preview.counts.events} events and ${preview.counts.reports} reports. Proceed?`;
       if (!confirm(confirmMsg)) return;
 
-      const delRes = await fetch(`${apiBase}/admin/interview/${interviewId}?confirm=true`, { method: 'DELETE' });
+      const delRes = await fetch(`${apiBase}/admin/interview/${interviewId}?confirm=true`, { method: "DELETE" });
       const del = await delRes.json();
-      if (!delRes.ok) throw new Error(del.error || 'Delete failed');
+      if (!delRes.ok) throw new Error(del.error || "Delete failed");
 
       setReports((prev) => prev.filter((r) => r._id !== del.id && r.interviewId !== del.id));
-      alert('Interview and related data deleted');
+      alert("Interview and related data deleted");
     } catch (err) {
-      console.error('Error removing interview data:', err);
-      alert('Failed to remove interview data: ' + (err.message || err));
+      console.error("Error removing interview data:", err);
+      alert("Failed to remove interview data: " + (err.message || err));
     }
   };
 
@@ -56,11 +56,16 @@ export default function ReportsPage() {
       {loading ? (
         <div className="animate-pulse space-y-4 max-w-full rounded-lg shadow-lg bg-white p-6">
           {[...Array(5)].map((_, i) => (
-            <div key={i} className={`h-10 rounded-md bg-gray-300 ${i % 2 === 0 ? "opacity-90" : "opacity-70"}`} />
+            <div
+              key={i}
+              className={`h-10 rounded-md bg-gray-300 ${i % 2 === 0 ? "opacity-90" : "opacity-70"}`}
+            />
           ))}
         </div>
       ) : error ? (
-        <p className="text-center text-red-600 text-lg mt-12 select-none">Error loading reports: {error}</p>
+        <p className="text-center text-red-600 text-lg mt-12 select-none">
+          Error loading reports: {error}
+        </p>
       ) : reports.length === 0 ? (
         <p className="text-center text-gray-600 text-lg mt-12 select-none">No reports available.</p>
       ) : (
@@ -70,30 +75,35 @@ export default function ReportsPage() {
             <table className="min-w-full border-collapse">
               <thead className="bg-gray-100 border-b border-gray-300">
                 <tr>
-                  {["Candidate", "Email", "Duration", "Integrity Score", "Created", "Action"].map((header) => (
-                    <th
-                      key={header}
-                      className="text-left text-gray-700 font-semibold px-4 py-3 select-none text-sm lg:text-base"
-                    >
-                      {header}
-                    </th>
-                  ))}
+                  {["Candidate", "Email", "Duration", "Integrity Score", "Created", "Action"].map(
+                    (header) => (
+                      <th
+                        key={header}
+                        className="text-left text-gray-700 font-semibold px-4 py-3 select-none text-sm lg:text-base"
+                      >
+                        {header}
+                      </th>
+                    )
+                  )}
                 </tr>
               </thead>
               <tbody>
                 {reports.map((report, idx) => (
                   <tr
                     key={report._id}
-                    className={`text-gray-800 text-sm lg:text-base ${idx % 2 === 0 ? "bg-white" : "bg-gray-50"} hover:bg-teal-50 transition-colors duration-200`}
+                    className={`text-gray-800 text-sm lg:text-base ${
+                      idx % 2 === 0 ? "bg-white" : "bg-gray-50"
+                    } hover:bg-teal-50 transition-colors duration-200`}
                   >
                     <td className="px-4 py-3 whitespace-nowrap">{report.candidateName}</td>
                     <td className="px-4 py-3 whitespace-nowrap break-all">{report.candidateEmail}</td>
                     <td className="px-4 py-3 whitespace-nowrap">{report.duration} sec</td>
                     <td className="px-4 py-3 whitespace-nowrap">{report.integrityScore}%</td>
-                    <td className="px-4 py-3 whitespace-nowrap">{new Date(report.createdAt).toLocaleString()}</td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      {new Date(report.createdAt).toLocaleString()}
+                    </td>
                     <td className="px-4 py-3 whitespace-nowrap">
                       <div className="flex gap-2">
-                        {/* Open report page */}
                         <Link
                           to={`/report/${report.interviewId || report._id}`}
                           className="inline-flex items-center px-3 py-2 rounded-lg font-medium text-teal-700 bg-teal-100 hover:bg-teal-200"
@@ -162,20 +172,26 @@ export default function ReportsPage() {
         </div>
       )}
 
+      {/* 🎥 Modern Video Preview Modal */}
       {previewVideoUrl && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black bg-opacity-60">
-          <div className="bg-white rounded-lg overflow-hidden max-w-3xl w-full mx-4">
-            <div className="flex justify-between items-center p-3 border-b">
-              <h3 className="font-semibold">Video Preview</h3>
-              <button
-                onClick={() => setPreviewVideoUrl(null)}
-                className="px-3 py-1 rounded bg-gray-100 hover:bg-gray-200"
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm animate-fadeIn">
+          <div className="relative w-full max-w-5xl mx-4">
+            {/* Close Button */}
+            <button
+              onClick={() => setPreviewVideoUrl(null)}
+              className="absolute -top-10 right-0 text-white bg-black/40 hover:bg-black/70 rounded-full p-2 shadow-lg transition"
+            >
+              <FiX className="w-6 h-6" />
+            </button>
+
+            {/* Video Player */}
+            <div className="bg-gray-900 rounded-xl shadow-2xl overflow-hidden border border-gray-700">
+              <video
+                controls
+                autoPlay
+                className="w-full h-[70vh] object-contain bg-black"
+                src={previewVideoUrl}
               >
-                Close
-              </button>
-            </div>
-            <div className="p-4">
-              <video controls className="w-full h-auto" src={previewVideoUrl}>
                 Your browser does not support the video tag.
               </video>
             </div>
