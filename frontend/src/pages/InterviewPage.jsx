@@ -21,6 +21,7 @@ export default function InterviewPage() {
   const isLooking = useRef(true);
   const animationIdRef = useRef(null);
   const cocoModelRef = useRef(null);
+  const lastAudioLogTime = useRef(0); // To limit audio event frequency
 
   const audioContextRef = useRef(null);
   const analyserRef = useRef(null);
@@ -36,7 +37,7 @@ export default function InterviewPage() {
   const [elapsedTime, setElapsedTime] = useState(0);
   const [speakingStatus, setSpeakingStatus] = useState("silent"); // speaking / silent
 
-  /** Redirect if no interviewId */
+  // Redirect if no interviewId
   useEffect(() => {
     if (!interviewId) {
       alert("Interview ID is required");
@@ -44,13 +45,15 @@ export default function InterviewPage() {
     }
   }, [interviewId, navigate]);
 
-  /** Event logging */
+  // API base
   const apiBase = import.meta.env.VITE_API_URL || "http://localhost:3000";
 
+  // Add log helper
   const addLog = useCallback(
     async (eventType, details = {}) => {
       const timestamp = new Date().toLocaleTimeString();
       setLogs((prev) => [...prev, { timestamp, event: eventType }]);
+
       try {
         await fetch(`${apiBase}/events`, {
           method: "POST",
@@ -232,8 +235,10 @@ export default function InterviewPage() {
         camera.start();
 
         // Audio detection (log only when speaking)
-        audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
-        audioSourceRef.current = audioContextRef.current.createMediaStreamSource(stream);
+        audioContextRef.current =
+          new (window.AudioContext || window.webkitAudioContext)();
+        audioSourceRef.current =
+          audioContextRef.current.createMediaStreamSource(stream);
         analyserRef.current = audioContextRef.current.createAnalyser();
         analyserRef.current.fftSize = 512;
         audioDataArrayRef.current = new Float32Array(analyserRef.current.fftSize);
@@ -247,9 +252,15 @@ export default function InterviewPage() {
               audioDataArrayRef.current.length
           );
 
+          const now = Date.now();
           if (rms > speakingThreshold) {
             setSpeakingStatus("speaking");
-            addLog("user_speaking", { rms: rms.toFixed(3) });
+
+            // Log to backend at most every 2 seconds
+            if (now - lastAudioLogTime.current > 2000) {
+              addLog("user_speaking", { rms: rms.toFixed(3) });
+              lastAudioLogTime.current = now;
+            }
           } else {
             setSpeakingStatus("silent");
           }
@@ -298,16 +309,20 @@ export default function InterviewPage() {
             const formData = new FormData();
             formData.append("video", blob, "interview.webm");
 
-            const apiUrl = import.meta.env.VITE_API_URL || "http://localhost:3000";
+            const apiUrl =
+              import.meta.env.VITE_API_URL || "http://localhost:3000";
 
             const controller = new AbortController();
             const timeoutId = setTimeout(() => controller.abort(), 30000);
 
-            const res = await fetch(`${apiUrl}/api/end-interview/${interviewId}`, {
-              method: "POST",
-              body: formData,
-              signal: controller.signal,
-            });
+            const res = await fetch(
+              `${apiUrl}/api/end-interview/${interviewId}`,
+              {
+                method: "POST",
+                body: formData,
+                signal: controller.signal,
+              }
+            );
             clearTimeout(timeoutId);
 
             if (!res.ok) {
@@ -392,7 +407,11 @@ export default function InterviewPage() {
               <FiClock className="mr-1" />
               {Math.floor(elapsedTime / 60)}m {elapsedTime % 60}s
             </div>
-            <div className={`flex items-center gap-1 font-semibold ${speakingStatus === "speaking" ? "text-green-600" : "text-red-500"}`}>
+            <div
+              className={`flex items-center gap-1 font-semibold ${
+                speakingStatus === "speaking" ? "text-green-600" : "text-red-500"
+              }`}
+            >
               <FiMic />
               {speakingStatus}
             </div>

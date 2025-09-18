@@ -1,20 +1,21 @@
 const mongoose = require("mongoose");
 
 const ReportSchema = new mongoose.Schema({
-  interviewId: { type: String, required: true },
+  interviewId: { type: mongoose.Schema.Types.ObjectId, ref: 'Interview', required: true },
   candidateName: String,
   candidateEmail: String,
   duration: Number,
-  totalEvents: Number,
+  totalEvents: { type: Number, default: 0 },
   suspiciousCounts: {
-    focusLost: Number,
-    noFace: Number,
-    multipleFaces: Number,
-    phoneDetected: Number,
-    notesDetected: Number
+    focusLost: { type: Number, default: 0 },
+    noFace: { type: Number, default: 0 },
+    multipleFaces: { type: Number, default: 0 },
+    phoneDetected: { type: Number, default: 0 },
+    notesDetected: { type: Number, default: 0 },
+    audioDetected: { type: Number, default: 0 }
   },
-  integrityScore: Number,
-  reportFile: String, //  path to generated PDF
+  integrityScore: { type: Number, default: 100 },
+  reportFile: String,
   createdAt: { type: Date, default: Date.now }
 });
 
