@@ -15,7 +15,6 @@ const ReportSchema = new mongoose.Schema({
     audioDetected: { type: Number, default: 0 }
   },
   integrityScore: { type: Number, default: 100 },
-  reportFile: String,
   createdAt: { type: Date, default: Date.now }
 });
 
